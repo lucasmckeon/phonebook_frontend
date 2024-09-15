@@ -24,7 +24,7 @@ const App = () => {
   const [newNumber,setNewNumber] = useState('')
   const [filter,setFilter] = useState('')
   const [status,setStatus] = useState(statusStates.none)
-  
+  const [error,setError] = useState(null)
   const filteredPersons = persons.filter(
     (person)=> person.name.toLowerCase().startsWith(filter.toLowerCase()));
   useEffect(()=>{
@@ -40,28 +40,43 @@ const App = () => {
       if(shouldUpdate){
         const asyncUpdate = async () => {
           const person = await updatePerson({...foundPerson,...newPerson})
-          const updatedPersons = persons.filter( p=> p.name !== person.name)
-          updatedPersons.push(person)
-          setPersons(updatedPersons)
-          resetFieldState()
-          setStatus(statusStates.updated)
-          setTimeout(() => {
-            setStatus(statusStates.none)
-          }, 2000);
+          const updatedPersons = (persons.filter(p=> p.name !== person.name)).push(person)
+          updatePersonsAndStatusView(updatedPersons) 
         }
-        asyncUpdate().catch(()=>showStatusView(statusStates.error))
+        asyncUpdate().catch(()=>{
+          brieflyShowErrorStatusView("Update error") 
+        })
       }
       return
     }
+
     addPerson(newPerson).then(addedPerson=>{
-      setPersons(persons.concat(addedPerson))
-      resetFieldState()
-      showStatusView(statusStates.added)
-    })
-    
+      updatePersonsAndStatusView(persons.concat(addedPerson))
+    }).catch(error=>{
+      brieflyShowErrorStatusView(error.response.data.error) 
+    }) 
   }
 
-  function showStatusView(status){
+  function updatePersonsAndStatusView(persons){
+    setPersons(persons)
+    resetFieldState()
+    brieflyShowStatusView(statusStates.added)
+  }
+
+  /**
+   * Need separate function for error status, as we need to set and reset  
+   * the error state whenever there is an error. 
+   */
+  function brieflyShowErrorStatusView(errorMsg){
+    setError(errorMsg)
+    setStatus(statusStates.error) 
+    setTimeout(() => {
+      setError(null)
+      setStatus(statusStates.none)
+    }, 2000); 
+  }
+
+  function brieflyShowStatusView(status){
     setStatus(status)
     setTimeout(() => {
       setStatus(statusStates.none)
@@ -77,19 +92,14 @@ const App = () => {
   function handleDelete(person){
     deletePerson(person).then((success)=>{
       if(!success){
-        setStatus(statusStates.error)
-        setTimeout(() => {
-          setStatus(statusStates.none)
-        }, 2000);
+        brieflyShowErrorStatusView("Deletion Person failed")
       } else{
         setPersons(persons.filter(p => p.id !== person.id))
-        setStatus(statusStates.deleted)
-          setTimeout(() => {
-            setStatus(statusStates.none)
-          }, 2000);
+        brieflyShowStatusView(statusStates.deleted)
       }
     })
   }
+
 
   function getStatusView(){
     switch(status){
@@ -103,7 +113,7 @@ const App = () => {
         return <h2>Deleted!</h2>
       }
       case statusStates.error:{
-        return <h2>Error!</h2>
+        return <h2 style={{color:"red"}}>{error}</h2>
       }
       case statusStates.none:{
         return null;
